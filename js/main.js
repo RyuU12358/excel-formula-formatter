@@ -182,7 +182,7 @@ function tokenize(input) {
     }
 
     if ('=+-*/^<>'.includes(c)) {
-      tokens.push({ type: 'op', value: c);
+      tokens.push({ type: 'op', value: c });
       i++;
       continue;
     }
@@ -357,7 +357,7 @@ function formatLabeledFunc(funcName, args, depth) {
   return lines.join('\n');
 }
 
-// ★ここが重要：関数だけツリー、それ以外は1行
+// ★関数だけツリー、それ以外は1行
 function formatNode(node, depth = 0) {
   if (node.type === 'Func') {
     return formatFuncNode(node, depth);
