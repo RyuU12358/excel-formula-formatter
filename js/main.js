@@ -181,11 +181,12 @@ function tokenize(input) {
       continue;
     }
 
-    if ('=+-*/^<>'.includes(c)) {
-      tokens.push({ type: 'op', value: c });
-      i++;
-      continue;
-    }
+if ('=+-*/^<>'.includes(c)) {
+  tokens.push({ type: 'op', value: c });
+  i++;
+  continue;
+}
+
 
     throw new Error('未知の文字: ' + c);
   }
