@@ -102,7 +102,7 @@ function getArgLabel(funcName, index) {
     return arr[index];
   }
 
-  // IFだけは保険で手動定義
+  // IFだけ保険
   if (funcName === 'IF') {
     if (key === 'en') {
       return ['logical_test', 'value_if_true', 'value_if_false'][index] || `arg${index+1}`;
@@ -112,7 +112,6 @@ function getArgLabel(funcName, index) {
     }
   }
 
-  // その他は汎用ラベル
   if (currentLang === 'ja') {
     return `引数${index + 1}`;
   } else {
@@ -314,7 +313,7 @@ function exprToInlineString(node) {
   }
 }
 
-// ===== AST → HTMLノード（details / summary） =====
+// ===== AST → HTMLノード（details/summaryツリー） =====
 
 function renderNode(node) {
   switch (node.type) {
@@ -347,13 +346,22 @@ function renderFuncNode(node) {
   const summary = document.createElement('summary');
   summary.className = 'func-summary';
 
-  // summary は「関数名 + ざっくり引数」
-  const inlineArgs = node.args.map(exprToInlineString).join(', ');
-  summary.textContent = `${funcName}(${inlineArgs})`;
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'func-name';
+  nameSpan.textContent = funcName;
 
+  const previewSpan = document.createElement('span');
+  previewSpan.className = 'func-preview';
+  const inlineArgs = node.args.map(exprToInlineString).join(', ');
+  previewSpan.textContent = '(' + inlineArgs + ')';
+
+  summary.appendChild(nameSpan);
+  summary.appendChild(previewSpan);
   details.appendChild(summary);
 
-  // 引数ごとの行
+  const body = document.createElement('div');
+  body.className = 'func-body';
+
   node.args.forEach((argNode, index) => {
     const row = document.createElement('div');
     row.className = 'arg-row';
@@ -371,9 +379,17 @@ function renderFuncNode(node) {
 
     row.appendChild(labelSpan);
     row.appendChild(valueSpan);
-
-    details.appendChild(row);
+    body.appendChild(row);
   });
+
+  details.appendChild(body);
+
+  // 開いてるときはプレビュー(圧縮版)を隠す
+  const syncPreview = () => {
+    previewSpan.style.display = details.open ? 'none' : 'inline';
+  };
+  syncPreview();
+  details.addEventListener('toggle', syncPreview);
 
   return details;
 }
@@ -397,38 +413,32 @@ function runFormatter() {
     const tokens = tokenize(src);
     const ast = parseFormula(tokens);
 
-    // 上に元の数式1行
     const header = document.createElement('div');
     header.className = 'formula-inline-top';
     header.textContent = '=' + exprToInlineString(ast);
 
     const treeRoot = renderNode(ast);
-// ルートが <details>（= 関数ツリー）のときだけ、ヘッダを折りたたみ連動させる
-if (treeRoot.tagName === 'DETAILS') {
-  const syncHeader = () => {
-    // 展開してるときはヘッダ非表示、閉じたらヘッダ表示
-    header.style.display = treeRoot.open ? 'none' : 'block';
-  };
 
-  // 初期状態を反映（details.open = true なので最初は隠れる）
-  syncHeader();
-
-  // summary クリックなどで open / close したときに同期
-  treeRoot.addEventListener('toggle', syncHeader);
-
-  // ヘッダ側をクリックしたらツリーを開く（おまけ）
-  header.style.cursor = 'pointer';
-  header.addEventListener('click', () => {
-    treeRoot.open = true;
-    syncHeader();
-  });
-}
     const wrapper = document.createElement('div');
     wrapper.className = 'formula-wrapper';
     wrapper.appendChild(header);
     wrapper.appendChild(treeRoot);
-
     outputEl.appendChild(wrapper);
+
+    // ルートが details のとき、open 状態に応じて元数式ヘッダを隠す
+    if (treeRoot.tagName === 'DETAILS') {
+      const syncHeader = () => {
+        header.style.display = treeRoot.open ? 'none' : 'block';
+      };
+      syncHeader();
+      treeRoot.addEventListener('toggle', syncHeader);
+
+      header.style.cursor = 'pointer';
+      header.addEventListener('click', () => {
+        treeRoot.open = true;
+        syncHeader();
+      });
+    }
   } catch (e) {
     const prefix = (I18N[currentLang] || I18N.ja).errorPrefix;
     errorEl.textContent = prefix + e.message;
@@ -455,6 +465,6 @@ labelModeSelect.addEventListener('change', () => {
 window.addEventListener('DOMContentLoaded', async () => {
   const lang = detectInitialLang();
   applyLang(lang);
-  await loadArgLabels(); // 失敗しても内部でエラー表示＋汎用ラベルで継続
+  await loadArgLabels();
   runFormatter();
 });
