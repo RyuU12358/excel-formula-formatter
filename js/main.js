@@ -182,7 +182,7 @@ function tokenize(input) {
     }
 
     if ('=+-*/^<>'.includes(c)) {
-      tokens.push({ type: 'op', value: c });
+      tokens.push({ type: 'op', value: c);
       i++;
       continue;
     }
@@ -296,6 +296,7 @@ function parseFormula(tokens) {
 
 // ===== AST → 文字列 =====
 
+// インライン（1行）の文字列表現
 function exprToInlineString(node) {
   switch (node.type) {
     case 'Literal':
@@ -315,18 +316,7 @@ function exprToInlineString(node) {
   }
 }
 
-function formatBinary(node, depth) {
-  const indent = '  '.repeat(depth);
-  const indentChild = '  '.repeat(depth + 1);
-  const lines = [];
-  lines.push(indent + '(');
-  lines.push(formatNode(node.left, depth + 1));
-  lines.push(indentChild + node.op);
-  lines.push(formatNode(node.right, depth + 1));
-  lines.push(indent + ')');
-  return lines.join('\n');
-}
-
+// 関数ツリー（ラベル付き）
 function formatFuncNode(node, depth) {
   const funcName = node.name.toUpperCase();
   return formatLabeledFunc(funcName, node.args, depth);
@@ -367,57 +357,13 @@ function formatLabeledFunc(funcName, args, depth) {
   return lines.join('\n');
 }
 
+// ★ここが重要：関数だけツリー、それ以外は1行
 function formatNode(node, depth = 0) {
-  switch (node.type) {
-    case 'Func':
-      return formatFuncNode(node, depth);
-    case 'Binary':
-      return formatBinary(node, depth);
-    case 'Literal':
-    case 'Identifier':
-      return '  '.repeat(depth) + exprToInlineString(node);
-    case 'Paren': {
-      const inner = formatNode(node.inner, depth + 1);
-      const indent = '  '.repeat(depth);
-      return indent + '(\n' + inner + '\n' + indent + ')';
-    }
-    default:
-      return '  '.repeat(depth) + exprToInlineString(node);
+  if (node.type === 'Func') {
+    return formatFuncNode(node, depth);
   }
-}
-.formula-wrapper {
-  font-family: Consolas, "Courier New", monospace;
-}
-
-.formula-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-
-.formula-header button.toggle-btn {
-  padding: 2px 6px;
-  font-size: 11px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  background: #333;
-  color: #eee;
-  cursor: pointer;
-}
-
-.formula-header button.toggle-btn:hover {
-  background: #444;
-}
-
-.formula-inline {
-  white-space: nowrap;
-  overflow-x: auto;
-}
-
-.formula-body {
-  margin-left: 20px;
+  const indent = '  '.repeat(depth);
+  return indent + exprToInlineString(node);
 }
 
 // ===== UIひもづけ =====
@@ -485,7 +431,6 @@ function runFormatter() {
     console.error(e);
   }
 }
-
 
 runBtn.addEventListener('click', runFormatter);
 
