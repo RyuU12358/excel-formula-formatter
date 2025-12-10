@@ -236,13 +236,15 @@ function parseFormula(tokens) {
 
   function parseMulDiv() {
     let node = parsePrimary();
-    while (peek().type === 'op' && ['*','/','^'].includes(peek().value)) {
+    // コロン(:)もここで拾う＝範囲演算子も二項演算子として扱う
+    while (peek().type === 'op' && ['*','/','^',':'].includes(peek().value)) {
       const op = consume('op').value;
       const right = parsePrimary();
       node = { type: 'Binary', op, left: node, right };
     }
     return node;
   }
+
 
   function parsePrimary() {
     const t = peek();
