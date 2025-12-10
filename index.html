@@ -75,19 +75,20 @@
       line-height: 1.4;
       tab-size: 2;
     }
-    pre {
-      flex: 1;
-      margin: 0;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #444;
-      background: #000;
-      color: #eee;
-      font-size: 13px;
-      line-height: 1.4;
-      overflow: auto;
-      white-space: pre;
-    }
+.output-container {
+  flex: 1;
+  margin: 0;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #000;
+  color: #eee;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: auto;
+  white-space: pre;
+}
+
     .controls {
       display: flex;
       gap: 8px;
@@ -207,7 +208,7 @@
     </div>
     <div class="panel">
       <div class="panel-title output" id="labelOutput">整形結果</div>
-      <pre id="output"></pre>
+      <div id="output"></div>
     </div>
   </main>
 
