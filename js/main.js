@@ -403,7 +403,26 @@ function runFormatter() {
     header.textContent = '=' + exprToInlineString(ast);
 
     const treeRoot = renderNode(ast);
+// ルートが <details>（= 関数ツリー）のときだけ、ヘッダを折りたたみ連動させる
+if (treeRoot.tagName === 'DETAILS') {
+  const syncHeader = () => {
+    // 展開してるときはヘッダ非表示、閉じたらヘッダ表示
+    header.style.display = treeRoot.open ? 'none' : 'block';
+  };
 
+  // 初期状態を反映（details.open = true なので最初は隠れる）
+  syncHeader();
+
+  // summary クリックなどで open / close したときに同期
+  treeRoot.addEventListener('toggle', syncHeader);
+
+  // ヘッダ側をクリックしたらツリーを開く（おまけ）
+  header.style.cursor = 'pointer';
+  header.addEventListener('click', () => {
+    treeRoot.open = true;
+    syncHeader();
+  });
+}
     const wrapper = document.createElement('div');
     wrapper.className = 'formula-wrapper';
     wrapper.appendChild(header);
