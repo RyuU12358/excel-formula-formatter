@@ -34,28 +34,36 @@
   color: #ccc;
 }
 
+/* 関数ツリー全体の縦線 */
 .func-node {
   margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid #444;  /* ★これが縦線 */
   font-size: 12px;
 }
 
+/* summary の行 */
 .func-summary {
   cursor: pointer;
 }
 
+/* 引数1行ぶん */
 .arg-row {
-  margin-left: 12px;
-  margin-top: 2px;
+  position: relative;
+  margin-left: 6px;
+  padding-left: 4px;
   display: flex;
   align-items: flex-start;
   gap: 4px;
 }
 
+/* 引数ラベル部分（条件式 / 真の場合…） */
 .arg-label {
   min-width: 90px;
   color: #8fd3ff;
 }
 
+/* 値側（中にさらに details が入ることもある） */
 .arg-value {
   flex: 1;
 }
@@ -63,6 +71,7 @@
 .expr-inline {
   white-space: nowrap;
 }
+
 
     .lang-switch {
       display: flex;
