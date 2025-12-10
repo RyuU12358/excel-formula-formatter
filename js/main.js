@@ -385,6 +385,40 @@ function formatNode(node, depth = 0) {
       return '  '.repeat(depth) + exprToInlineString(node);
   }
 }
+.formula-wrapper {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.formula-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.formula-header button.toggle-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #333;
+  color: #eee;
+  cursor: pointer;
+}
+
+.formula-header button.toggle-btn:hover {
+  background: #444;
+}
+
+.formula-inline {
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.formula-body {
+  margin-left: 20px;
+}
 
 // ===== UIひもづけ =====
 
