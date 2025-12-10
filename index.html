@@ -414,10 +414,9 @@
     }
 
     function formatIF(node, depth) {
-      // depth: ネストの深さ。ここから縦線の本数を決める
+      // depth = ネストの深さ
       const indent = '  '.repeat(depth);
-      const barPrefix = '│ '.repeat(depth + 1);   // この IF の中身に付ける縦線
-      const innerIndent = '  '.repeat(depth + 1); // ほぼ使わないけど残しておく
+      const barPrefix = '| '.repeat(depth + 1);   // ここが縦線
       const labelWidth = 8;
 
       const labelsJA = ['条件式', '真の場合', '偽の場合'];
@@ -425,7 +424,8 @@
       const labels = currentLang === 'ja' ? labelsJA : labelsEN;
 
       const lines = [];
-      // IF の行自体には縦線は付けず、そのまま表示
+
+      // IF 本体の行（ここは縦線なし）
       lines.push(indent + 'IF(');
 
       node.args.forEach((arg, i) => {
@@ -434,22 +434,22 @@
           (currentLang === 'ja' ? ('引数' + (i + 1)) : ('arg' + (i + 1)));
         const label = labelRaw.padEnd(labelWidth);
 
-        // ネストした IF は再帰で整形、それ以外は通常整形
+        // ネスト IF は再帰、それ以外は普通に整形
         const formatted =
           (arg.type === 'Func' && arg.name.toUpperCase() === 'IF')
-            ? formatIF(arg, depth + 2)
-            : formatNode(arg, depth + 2);
+            ? formatIF(arg, depth + 1)
+            : formatNode(arg, depth + 1);
 
         const argLines = formatted.split('\n');
 
-        // 1行目： 縦線 + ラベル + 本文
+        // 1行目： | | | + ラベル + 本文
         lines.push(
           barPrefix +
           label + '  ' +
           argLines[0].trimStart()
         );
 
-        // 2行目以降：ラベル部分は空白にして、縦線だけ残す
+        // 2行目以降：ラベル部分は空白にして、縦線だけ維持
         for (let j = 1; j < argLines.length; j++) {
           lines.push(
             barPrefix +
@@ -459,10 +459,11 @@
         }
       });
 
-      // 閉じカッコの行も縦線なし
+      // 閉じカッコ
       lines.push(indent + ')');
       return lines.join('\n');
     }
+
 
 
     // ===== UIひもづけ =====
