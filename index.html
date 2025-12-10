@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>エクセルクソ長数式が"少しだけ"読みやすくなる"かもしれない"ツール。</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Excel の長くて読みづらい数式を、IF のネスト構造ごと読みやすく整形して表示するツール。英語・日本語 UI に対応。">
+  <meta name="description" content="Excel の長くて読みづらい数式を、IF だけでなく多くの関数について、引数ラベル付きで読みやすく整形して表示するツール。英語・日本語 UI に対応。">
   <style>
     * {
       box-sizing: border-box;
@@ -95,6 +95,7 @@
       border-top: 1px solid #333;
       background: #181818;
       align-items: center;
+      flex-wrap: wrap;
     }
     button {
       padding: 6px 12px;
@@ -117,6 +118,25 @@
       color: #ff8080;
       font-size: 11px;
       margin-left: auto;
+    }
+    .label-mode {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      font-size: 11px;
+      color: #aaa;
+    }
+    .label-mode select {
+      background: #222;
+      color: #eee;
+      border-radius: 4px;
+      border: 1px solid #555;
+      font-size: 11px;
+      padding: 2px 6px;
+    }
+    .small-note {
+      font-size: 10px;
+      color: #666;
     }
   </style>
 </head>
@@ -158,354 +178,24 @@
 
   <div class="controls">
     <button id="runButton">整形する</button>
+
+    <div class="label-mode">
+      <span id="labelModeCaption">引数ラベル表示:</span>
+      <select id="labelModeSelect">
+        <option value="auto">自動（UIの言語に合わせる）</option>
+        <option value="ja1">日本語・短く</option>
+        <option value="ja2">日本語・説明付き</option>
+        <option value="en">英語</option>
+        <option value="off">非表示</option>
+      </select>
+    </div>
+
     <span class="hint" id="hintText">
       IF と基本的な演算子（= + - * / ^）と関数呼び出しに対応した簡易版デモ
     </span>
     <span id="error" class="error"></span>
   </div>
 
-  <script>
-    // ===== 多言語辞書 =====
-    const I18N = {
-      ja: {
-        title: 'エクセルクソ長数式が"少しだけ"読みやすくなる"かもしれない"ツール。',
-        headerTitle: 'エクセルクソ長数式が"少しだけ"読みやすくなる"かもしれない"ツール。',
-        inputLabel: '元の数式（Excel 風）',
-        outputLabel: '整形結果',
-        runButton: '整形する',
-        hint: 'IF と基本的な演算子（= + - * / ^）と関数呼び出しに対応した簡易版デモ',
-        errorPrefix: 'エラー: '
-      },
-      en: {
-        title: 'A tool that *might* make disgusting long Excel formulas *slightly* more readable.',
-        headerTitle: 'A tool that *might* make disgusting long Excel formulas *slightly* more readable.',
-        inputLabel: 'Original formula (Excel-like)',
-        outputLabel: 'Formatted result',
-        runButton: 'Format',
-        hint: 'Simple demo: supports IF, basic operators (= + - * / ^) and function calls',
-        errorPrefix: 'Error: '
-      }
-    };
-
-    let currentLang = 'ja';
-
-    function detectInitialLang() {
-      const stored = localStorage.getItem('formula_viewer_lang');
-      if (stored && (stored === 'ja' || stored === 'en')) {
-        return stored;
-      }
-      const nav = navigator.language || navigator.userLanguage || 'en';
-      return nav.startsWith('ja') ? 'ja' : 'en';
-    }
-
-    function applyLang(lang) {
-      const dict = I18N[lang] || I18N.ja;
-      currentLang = lang;
-      localStorage.setItem('formula_viewer_lang', lang);
-
-      document.title = dict.title;
-      document.getElementById('headerTitle').textContent = dict.headerTitle;
-      document.getElementById('labelInput').textContent = dict.inputLabel;
-      document.getElementById('labelOutput').textContent = dict.outputLabel;
-      document.getElementById('runButton').textContent = dict.runButton;
-      document.getElementById('hintText').textContent = dict.hint;
-
-      document.getElementById('btnJa').classList.toggle('active', lang === 'ja');
-      document.getElementById('btnEn').classList.toggle('active', lang === 'en');
-    }
-
-    // ===== トークナイザ =====
-    function tokenize(input) {
-      let s = input.trim();
-      if (s[0] === '=') s = s.slice(1);
-      const tokens = [];
-      let i = 0;
-
-      const isLetter = c => /[A-Za-z_]/.test(c);
-      const isDigit  = c => /[0-9]/.test(c);
-      const isIdentChar = c => /[A-Za-z0-9_\$]/.test(c);
-
-      while (i < s.length) {
-        const c = s[i];
-
-        if (c === ' ' || c === '\t' || c === '\n' || c === '\r') {
-          i++;
-          continue;
-        }
-
-        if (isLetter(c) || c === '$') {
-          let start = i;
-          i++;
-          while (i < s.length && isIdentChar(s[i])) i++;
-          tokens.push({ type: 'ident', value: s.slice(start, i) });
-          continue;
-        }
-
-        if (isDigit(c) || (c === '.' && isDigit(s[i+1] || ''))) {
-          let start = i;
-          i++;
-          while (i < s.length && (isDigit(s[i]) || s[i] === '.')) i++;
-          tokens.push({ type: 'number', value: s.slice(start, i) });
-          continue;
-        }
-
-        if (c === '"') {
-          i++;
-          let str = '';
-          while (i < s.length && s[i] !== '"') {
-            str += s[i++];
-          }
-          if (s[i] === '"') i++;
-          tokens.push({ type: 'string', value: str });
-          continue;
-        }
-
-        if (c === ',' || c === '(' || c === ')') {
-          tokens.push({ type: c, value: c });
-          i++;
-          continue;
-        }
-
-        const two = s.slice(i, i+2);
-        if (['>=', '<=', '<>', '=='].includes(two)) {
-          tokens.push({ type: 'op', value: two });
-          i += 2;
-          continue;
-        }
-
-        if ('=+-*/^<>'.includes(c)) {
-          tokens.push({ type: 'op', value: c });
-          i++;
-          continue;
-        }
-
-        throw new Error('未知の文字: ' + c);
-      }
-
-      tokens.push({ type: 'eof', value: '' });
-      return tokens;
-    }
-
-    // ===== パーサ =====
-    function parseFormula(tokens) {
-      let pos = 0;
-      const peek = () => tokens[pos];
-      const consume = (type, value) => {
-        const t = tokens[pos];
-        if (type && t.type !== type) {
-          throw new Error(`トークンタイプ不一致: 期待=${type} 実際=${t.type}`);
-        }
-        if (value && t.value !== value) {
-          throw new Error(`トークン値不一致: 期待=${value} 実際=${t.value}`);
-        }
-        pos++;
-        return t;
-      };
-
-      function parseExpression() {
-        return parseComparison();
-      }
-
-      function parseComparison() {
-        let node = parseAddSub();
-        while (peek().type === 'op' && ['=','<>','<','>','<=','>='].includes(peek().value)) {
-          const op = consume('op').value;
-          const right = parseAddSub();
-          node = { type: 'Binary', op, left: node, right };
-        }
-        return node;
-      }
-
-      function parseAddSub() {
-        let node = parseMulDiv();
-        while (peek().type === 'op' && ['+','-'].includes(peek().value)) {
-          const op = consume('op').value;
-          const right = parseMulDiv();
-          node = { type: 'Binary', op, left: node, right };
-        }
-        return node;
-      }
-
-      function parseMulDiv() {
-        let node = parsePrimary();
-        while (peek().type === 'op' && ['*','/','^'].includes(peek().value)) {
-          const op = consume('op').value;
-          const right = parsePrimary();
-          node = { type: 'Binary', op, left: node, right };
-        }
-        return node;
-      }
-
-      function parsePrimary() {
-        const t = peek();
-
-        if (t.type === 'number') {
-          consume('number');
-          return { type: 'Literal', kind: 'number', value: t.value };
-        }
-        if (t.type === 'string') {
-          consume('string');
-          return { type: 'Literal', kind: 'string', value: `"${t.value}"` };
-        }
-        if (t.type === 'ident') {
-          const name = consume('ident').value;
-          if (peek().type === '(') {
-            consume('(');
-            const args = [];
-            if (peek().type !== ')') {
-              while (true) {
-                args.push(parseExpression());
-                if (peek().type === ',') {
-                  consume(',');
-                  continue;
-                }
-                break;
-              }
-            }
-            consume(')');
-            return { type: 'Func', name, args };
-          } else {
-            return { type: 'Identifier', name };
-          }
-        }
-        if (t.type === '(') {
-          consume('(');
-          const node = parseExpression();
-          consume(')');
-          return { type: 'Paren', inner: node };
-        }
-
-        throw new Error('予期せぬトークン: ' + t.type + ' ' + t.value);
-      }
-
-      const ast = parseExpression();
-      if (peek().type !== 'eof') {
-        throw new Error('式の後ろに余分なトークンがあります');
-      }
-      return ast;
-    }
-
-    // ===== AST → 文字列 =====
-    function exprToString(node) {
-      switch (node.type) {
-        case 'Literal':
-          return node.value;
-        case 'Identifier':
-          return node.name;
-        case 'Paren':
-          return '(' + exprToString(node.inner) + ')';
-        case 'Binary':
-          return exprToString(node.left) + ' ' + node.op + ' ' + exprToString(node.right);
-        case 'Func':
-          const args = node.args.map(exprToString).join(', ');
-          return node.name + '(' + args + ')';
-        default:
-          return '?';
-      }
-    }
-
-    // ===== 整形 =====
-    function formatNode(node, depth = 0) {
-      if (node.type === 'Func' && node.name.toUpperCase() === 'IF') {
-        return formatIF(node, depth);
-      }
-      const indent = '  '.repeat(depth);
-      return indent + exprToString(node);
-    }
-
-    function formatIF(node, depth) {
-      // depth = ネストの深さ
-      const indent = '  '.repeat(depth);
-      const barPrefix = '| '.repeat(depth + 1);   // ここが縦線
-      const labelWidth = 8;
-
-      const labelsJA = ['条件式', '真の場合', '偽の場合'];
-      const labelsEN = ['condition', 'if_true', 'if_false'];
-      const labels = currentLang === 'ja' ? labelsJA : labelsEN;
-
-      const lines = [];
-
-      // IF 本体の行（ここは縦線なし）
-      lines.push(indent + 'IF(');
-
-      node.args.forEach((arg, i) => {
-        const labelRaw =
-          labels[i] ||
-          (currentLang === 'ja' ? ('引数' + (i + 1)) : ('arg' + (i + 1)));
-        const label = labelRaw.padEnd(labelWidth);
-
-        // ネスト IF は再帰、それ以外は普通に整形
-        const formatted =
-          (arg.type === 'Func' && arg.name.toUpperCase() === 'IF')
-            ? formatIF(arg, depth + 1)
-            : formatNode(arg, depth + 1);
-
-        const argLines = formatted.split('\n');
-
-        // 1行目： | | | + ラベル + 本文
-        lines.push(
-          barPrefix +
-          label + '  ' +
-          argLines[0].trimStart()
-        );
-
-        // 2行目以降：ラベル部分は空白にして、縦線だけ維持
-        for (let j = 1; j < argLines.length; j++) {
-          lines.push(
-            barPrefix +
-            ' '.repeat(labelWidth) + '  ' +
-            argLines[j]
-          );
-        }
-      });
-
-      // 閉じカッコ
-      lines.push(indent + ')');
-      return lines.join('\n');
-    }
-
-
-
-    // ===== UIひもづけ =====
-    const inputEl = document.getElementById('inputFormula');
-    const outputEl = document.getElementById('output');
-    const errorEl  = document.getElementById('error');
-    const runBtn   = document.getElementById('runButton');
-    const btnJa    = document.getElementById('btnJa');
-    const btnEn    = document.getElementById('btnEn');
-
-    function runFormatter() {
-      const src = inputEl.value;
-      errorEl.textContent = '';
-      try {
-        const tokens = tokenize(src);
-        const ast = parseFormula(tokens);
-        const formatted = formatNode(ast, 0);
-        outputEl.textContent = formatted;
-      } catch (e) {
-        outputEl.textContent = '';
-        const prefix = (I18N[currentLang] || I18N.ja).errorPrefix;
-        errorEl.textContent = prefix + e.message;
-        console.error(e);
-      }
-    }
-
-    runBtn.addEventListener('click', runFormatter);
-
-    btnJa.addEventListener('click', () => {
-      applyLang('ja');
-      runFormatter();
-    });
-    btnEn.addEventListener('click', () => {
-      applyLang('en');
-      runFormatter();
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-      const lang = detectInitialLang();
-      applyLang(lang);
-      runFormatter();
-    });
-  </script>
+  <script src="./js/main.js" defer></script>
 </body>
 </html>
