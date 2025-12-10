@@ -248,7 +248,12 @@ function parseFormula(tokens) {
 
   function parsePrimary() {
     const t = peek();
-
+    // ★ 単項 + / - に対応（例: -5000, +A1）
+    if (t.type === 'op' && (t.value === '+' || t.value === '-')) {
+      const op = consume('op').value;
+      const expr = parsePrimary();  // 次の「本体」をもう一回 primary として読む
+      return { type: 'Unary', op, expr };
+    }
     if (t.type === 'number') {
       consume('number');
       return { type: 'Literal', kind: 'number', value: t.value };
@@ -305,6 +310,8 @@ function exprToInlineString(node) {
       return node.name;
     case 'Paren':
       return '(' + exprToInlineString(node.inner) + ')';
+    case 'Unary':
+      return node.op + exprToInlineString(node.expr);
     case 'Binary':
       return exprToInlineString(node.left) + ' ' + node.op + ' ' + exprToInlineString(node.right);
     case 'Func': {
@@ -316,6 +323,7 @@ function exprToInlineString(node) {
   }
 }
 
+
 // ===== AST → HTMLノード（details/summaryツリー） =====
 
 function renderNode(node) {
@@ -325,7 +333,8 @@ function renderNode(node) {
     case 'Literal':
     case 'Identifier':
     case 'Binary':
-    case 'Paren': {
+    case 'Paren': 
+    case 'Unary': {
       const span = document.createElement('span');
       span.className = 'expr-inline';
       span.textContent = exprToInlineString(node);
