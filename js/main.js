@@ -433,18 +433,59 @@ const labelModeSelect = document.getElementById('labelModeSelect');
 function runFormatter() {
   const src = inputEl.value;
   errorEl.textContent = '';
+  outputEl.innerHTML = '';
+
   try {
     const tokens = tokenize(src);
     const ast = parseFormula(tokens);
+
+    // 1行にした「元の数式」
+    const inline = '=' + exprToInlineString(ast);
+
+    // ツリー整形したテキスト
     const formatted = formatNode(ast, 0);
-    outputEl.textContent = formatted;
+
+    // ラッパ生成
+    const wrapper = document.createElement('div');
+    wrapper.className = 'formula-wrapper';
+
+    const header = document.createElement('div');
+    header.className = 'formula-header';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toggle-btn';
+    btn.textContent = '[+]';
+
+    const inlineSpan = document.createElement('span');
+    inlineSpan.className = 'formula-inline';
+    inlineSpan.textContent = inline;
+
+    header.appendChild(btn);
+    header.appendChild(inlineSpan);
+
+    const body = document.createElement('pre');
+    body.className = 'formula-body';
+    body.style.display = 'none';
+    body.textContent = formatted;
+
+    btn.addEventListener('click', () => {
+      const opened = body.style.display !== 'none';
+      body.style.display = opened ? 'none' : 'block';
+      btn.textContent = opened ? '[+]' : '[-]';
+    });
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(body);
+
+    outputEl.appendChild(wrapper);
   } catch (e) {
-    outputEl.textContent = '';
     const prefix = (I18N[currentLang] || I18N.ja).errorPrefix;
     errorEl.textContent = prefix + e.message;
     console.error(e);
   }
 }
+
 
 runBtn.addEventListener('click', runFormatter);
 
