@@ -8,7 +8,7 @@ const I18N = {
     inputLabel: '元の数式（Excel 風）',
     outputLabel: '整形結果',
     runButton: '整形する',
-    hint: 'IF や FILTER などの関数を、引数ラベル付きのツリー構造で表示する簡易版デモ',
+    hint: 'IF や FILTER などの関数を、引数ラベル付きツリーで表示する簡易版デモ',
     errorPrefix: 'エラー: ',
     labelModeCaption: '引数ラベル表示:'
   },
@@ -18,7 +18,7 @@ const I18N = {
     inputLabel: 'Original formula (Excel-like)',
     outputLabel: 'Formatted result',
     runButton: 'Format',
-    hint: 'Simple demo: show Excel-like formulas as labeled tree structures (IF, FILTER, etc.)',
+    hint: 'Simple demo: show functions as labeled tree structures (IF, FILTER, etc.)',
     errorPrefix: 'Error: ',
     labelModeCaption: 'Argument labels:'
   }
@@ -88,7 +88,6 @@ function getArgLabel(funcName, index) {
 
   const meta = ARG_LABELS[funcName];
 
-  // 実際に使うキーを決める
   let key;
   if (labelMode === 'auto') {
     key = (currentLang === 'ja') ? 'ja1' : 'en';
@@ -181,12 +180,11 @@ function tokenize(input) {
       continue;
     }
 
-if ('=+-*/^<>'.includes(c)) {
-  tokens.push({ type: 'op', value: c });
-  i++;
-  continue;
-}
-
+    if ('=+-*/^<>'.includes(c)) {
+      tokens.push({ type: 'op', value: c });
+      i++;
+      continue;
+    }
 
     throw new Error('未知の文字: ' + c);
   }
@@ -295,9 +293,8 @@ function parseFormula(tokens) {
   return ast;
 }
 
-// ===== AST → 文字列 =====
+// ===== AST → インライン文字列 =====
 
-// インライン（1行）の文字列表現
 function exprToInlineString(node) {
   switch (node.type) {
     case 'Literal':
@@ -317,54 +314,68 @@ function exprToInlineString(node) {
   }
 }
 
-// 関数ツリー（ラベル付き）
-function formatFuncNode(node, depth) {
-  const funcName = node.name.toUpperCase();
-  return formatLabeledFunc(funcName, node.args, depth);
+// ===== AST → HTMLノード（details / summary） =====
+
+function renderNode(node) {
+  switch (node.type) {
+    case 'Func':
+      return renderFuncNode(node);
+    case 'Literal':
+    case 'Identifier':
+    case 'Binary':
+    case 'Paren': {
+      const span = document.createElement('span');
+      span.className = 'expr-inline';
+      span.textContent = exprToInlineString(node);
+      return span;
+    }
+    default: {
+      const span = document.createElement('span');
+      span.textContent = exprToInlineString(node);
+      return span;
+    }
+  }
 }
 
-function formatLabeledFunc(funcName, args, depth) {
-  const indent = '  '.repeat(depth);
-  const barPrefix = '| '.repeat(depth + 1);
-  const labelWidth = 14;
-  const lines = [];
+function renderFuncNode(node) {
+  const funcName = node.name.toUpperCase();
 
-  lines.push(indent + funcName + '(');
+  const details = document.createElement('details');
+  details.open = true;
+  details.className = 'func-node';
 
-  args.forEach((arg, i) => {
-    const labelRaw = getArgLabel(funcName, i);
-    const label = labelRaw.padEnd(labelWidth, ' ');
-    const formatted = formatNode(arg, depth + 1);
-    const argLines = formatted.split('\n');
+  const summary = document.createElement('summary');
+  summary.className = 'func-summary';
 
-    // 1行目
-    lines.push(
-      barPrefix +
-      label + '  ' +
-      argLines[0].trimStart()
-    );
+  // summary は「関数名 + ざっくり引数」
+  const inlineArgs = node.args.map(exprToInlineString).join(', ');
+  summary.textContent = `${funcName}(${inlineArgs})`;
 
-    // 2行目以降
-    for (let j = 1; j < argLines.length; j++) {
-      lines.push(
-        barPrefix +
-        ' '.repeat(labelWidth) + '  ' +
-        argLines[j]
-      );
-    }
+  details.appendChild(summary);
+
+  // 引数ごとの行
+  node.args.forEach((argNode, index) => {
+    const row = document.createElement('div');
+    row.className = 'arg-row';
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'arg-label';
+
+    const labelText = getArgLabel(funcName, index);
+    labelSpan.textContent = labelText ? labelText + ': ' : '';
+
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'arg-value';
+    const childEl = renderNode(argNode);
+    valueSpan.appendChild(childEl);
+
+    row.appendChild(labelSpan);
+    row.appendChild(valueSpan);
+
+    details.appendChild(row);
   });
 
-  lines.push(indent + ')');
-  return lines.join('\n');
-}
-
-// ★関数だけツリー、それ以外は1行
-function formatNode(node, depth = 0) {
-  if (node.type === 'Func') {
-    return formatFuncNode(node, depth);
-  }
-  const indent = '  '.repeat(depth);
-  return indent + exprToInlineString(node);
+  return details;
 }
 
 // ===== UIひもづけ =====
@@ -386,44 +397,17 @@ function runFormatter() {
     const tokens = tokenize(src);
     const ast = parseFormula(tokens);
 
-    // 1行にした「元の数式」
-    const inline = '=' + exprToInlineString(ast);
+    // 上に元の数式1行
+    const header = document.createElement('div');
+    header.className = 'formula-inline-top';
+    header.textContent = '=' + exprToInlineString(ast);
 
-    // ツリー整形したテキスト
-    const formatted = formatNode(ast, 0);
+    const treeRoot = renderNode(ast);
 
-    // ラッパ生成
     const wrapper = document.createElement('div');
     wrapper.className = 'formula-wrapper';
-
-    const header = document.createElement('div');
-    header.className = 'formula-header';
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'toggle-btn';
-    btn.textContent = '[+]';
-
-    const inlineSpan = document.createElement('span');
-    inlineSpan.className = 'formula-inline';
-    inlineSpan.textContent = inline;
-
-    header.appendChild(btn);
-    header.appendChild(inlineSpan);
-
-    const body = document.createElement('pre');
-    body.className = 'formula-body';
-    body.style.display = 'none';
-    body.textContent = formatted;
-
-    btn.addEventListener('click', () => {
-      const opened = body.style.display !== 'none';
-      body.style.display = opened ? 'none' : 'block';
-      btn.textContent = opened ? '[+]' : '[-]';
-    });
-
     wrapper.appendChild(header);
-    wrapper.appendChild(body);
+    wrapper.appendChild(treeRoot);
 
     outputEl.appendChild(wrapper);
   } catch (e) {
